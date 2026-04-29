@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AirShare – Gesture-Based Cross-Device File Transfer">
+  <title>AirShare – Gesture File Transfer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loading-screen" class="loading-screen">
+    <div class="loading-content">
+      <div class="loading-logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 80 80" fill="none"><defs><linearGradient id="lg" x1="0" y1="0" x2="80" y2="80"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#a78bfa"/></linearGradient></defs><path d="M40 8L60 20V44L40 56L20 44V20Z" stroke="url(#lg)" stroke-width="2.5" fill="none" opacity="0.6"/><circle cx="40" cy="32" r="6" fill="url(#lg)" opacity="0.8"/><path d="M30 50L35 42M38 55L40 46M46 54L44 44M52 50L48 42" stroke="url(#lg)" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/></svg>
+        </div>
+        <h1 class="loading-title">AirShare</h1>
+        <p class="loading-subtitle">Gesture-Based File Transfer</p>
+      </div>
+      <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+      <p class="loading-status">Initializing systems...</p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app" class="app hidden">
+    <canvas id="particle-canvas" class="particle-canvas"></canvas>
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="logo-small">
+          <svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="lgs" x1="0" y1="0" x2="32" y2="32"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#a78bfa"/></linearGradient></defs><path d="M16 4L26 10V22L16 28L6 22V10Z" stroke="url(#lgs)" stroke-width="1.5" fill="url(#lgs)" fill-opacity="0.15"/><circle cx="16" cy="14" r="3" fill="url(#lgs)"/></svg>
+          <span>AirShare</span>
+        </div>
+      </div>
+      <div class="topbar-center">
+        <div class="connection-status" id="connection-status">
+          <span class="status-dot"></span>
+          <span class="status-text">Connecting...</span>
+        </div>
+        <div class="connection-status" id="db-status">
+          <span class="status-dot" id="db-dot"></span>
+          <span class="status-text" id="db-text">MongoDB</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="device-id-badge"><span class="badge-label">My ID</span><span class="badge-value" id="my-device-id">---</span></div>
+        <button class="btn-sm btn-primary" id="btn-connect" title="Connect Other Devices">+ Connect Devices</button>
+        <button class="btn-icon" id="btn-history" title="Transfer History">📜</button>
+        <button class="btn-icon" id="btn-settings" title="Settings">⚙</button>
+      </div>
+    </header>
+
+    <!-- Stats Dashboard -->
+    <div class="stats-bar" id="stats-bar">
+      <div class="stats-item"><span class="stats-icon">📤</span><span class="stats-label">Transfers</span><span class="stats-value" id="stats-transfers">0</span></div>
+      <div class="stats-item"><span class="stats-icon">💾</span><span class="stats-label">Data Sent</span><span class="stats-value" id="stats-bytes">0 B</span></div>
+      <div class="stats-item"><span class="stats-icon">📋</span><span class="stats-label">Clipboards</span><span class="stats-value" id="stats-clips">0</span></div>
+      <div class="stats-item"><span class="stats-icon">📱</span><span class="stats-label">Devices Seen</span><span class="stats-value" id="stats-devices">0</span></div>
+      <div class="stats-item"><span class="stats-icon">🟢</span><span class="stats-label">Active Now</span><span class="stats-value" id="stats-active">0</span></div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Camera Panel -->
+      <section class="panel camera-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">🎥 Hand Tracking</h2>
+          <div class="panel-actions"><button class="btn-sm btn-primary" id="btn-toggle-camera">▶ Start Camera</button></div>
+        </div>
+        <div class="camera-container" id="camera-container">
+          <div class="camera-placeholder" id="camera-placeholder">
+            <div class="camera-placeholder-icon" style="font-size:48px;opacity:0.3;margin-bottom:12px">📷</div>
+            <p>Click "Start Camera" to enable hand tracking</p>
+            <p class="hint">Use hand gestures to pick, drag, and throw files</p>
+          </div>
+          <video id="webcam" class="webcam-video" autoplay playsinline></video>
+          <canvas id="gesture-canvas" class="gesture-canvas"></canvas>
+          <div class="gesture-indicator" id="gesture-indicator">
+            <span class="gesture-icon" id="gesture-icon">✋</span>
+            <span class="gesture-label" id="gesture-label">Open Hand</span>
+          </div>
+          <div class="gesture-tutorial" id="gesture-tutorial">
+            <div class="tutorial-item"><span class="tutorial-gesture">🤏</span><span>Pinch = Select</span></div>
+            <div class="tutorial-item"><span class="tutorial-gesture">✊</span><span>Fist = Hold</span></div>
+            <div class="tutorial-item"><span class="tutorial-gesture">🫳</span><span>Open = Send</span></div>
+          </div>
+        </div>
+        <div class="gesture-stats">
+          <div class="stat-item"><span class="stat-label">Gesture</span><span class="stat-value" id="stat-gesture">None</span></div>
+          <div class="stat-item"><span class="stat-label">Confidence</span><span class="stat-value" id="stat-confidence">--%</span></div>
+          <div class="stat-item"><span class="stat-label">FPS</span><span class="stat-value" id="stat-fps">0</span></div>
+          <div class="stat-item"><span class="stat-label">Hand</span><span class="stat-value" id="stat-hand">--</span></div>
+        </div>
+      </section>
+
+      <!-- File Panel -->
+      <section class="panel file-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">📁 File Zone</h2>
+          <div class="panel-actions">
+            <button class="btn-sm btn-secondary" id="btn-add-files">+ Add Files</button>
+            <button class="btn-sm btn-secondary" id="btn-clipboard">📋 Air Clipboard</button>
+          </div>
+        </div>
+        <div class="file-drop-zone" id="file-drop-zone">
+          <input type="file" id="file-input" multiple hidden>
+          <div class="drop-zone-empty" id="drop-zone-empty">
+            <div class="drop-icon-container"><div class="drop-icon-ring"></div><div style="font-size:48px">📂</div></div>
+            <p class="drop-title">Drop files here or click "Add Files"</p>
+            <p class="drop-hint">Or use pinch gesture to pick files</p>
+          </div>
+          <div class="file-grid" id="file-grid"></div>
+        </div>
+        <div class="air-clipboard" id="air-clipboard" style="display:none">
+          <div class="clipboard-header"><h3>📋 Air Clipboard</h3><button class="btn-xs" id="btn-close-clipboard">✕</button></div>
+          <textarea class="clipboard-input" id="clipboard-input" placeholder="Paste text here... Send to any device"></textarea>
+          <div class="clipboard-actions"><button class="btn-sm btn-primary" id="btn-clipboard-send">Send to Device</button></div>
+        </div>
+        <div class="transfer-progress" id="transfer-progress" style="display:none">
+          <div class="progress-header"><span class="progress-title" id="progress-title">Sending...</span><span class="progress-percent" id="progress-percent">0%</span></div>
+          <div class="progress-bar"><div class="progress-bar-fill" id="progress-bar-fill"></div></div>
+          <div class="progress-details"><span id="progress-speed"></span><span id="progress-eta"></span></div>
+        </div>
+      </section>
+
+      <!-- Devices Panel -->
+      <section class="panel devices-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">📡 Nearby Devices</h2>
+          <div class="panel-actions"><button class="btn-sm btn-secondary" id="btn-refresh-devices">🔍 Scan</button></div>
+        </div>
+        <div class="device-radar" id="device-radar">
+          <div class="radar-ring ring-1"></div><div class="radar-ring ring-2"></div><div class="radar-ring ring-3"></div>
+          <div class="radar-sweep"></div>
+          <div class="radar-center"><div style="font-size:20px">📱</div><span>You</span></div>
+        </div>
+        <div class="device-list" id="device-list">
+          <div class="device-list-empty"><p>Scanning for nearby devices...</p><p class="hint">Open AirShare on another device</p></div>
+        </div>
+        <div class="group-share"><button class="btn-sm btn-accent" id="btn-group-share" disabled>👥 Group Share</button></div>
+      </section>
+    </main>
+
+    <!-- Transfer History Modal -->
+    <div class="modal-overlay" id="history-modal" style="display:none">
+      <div class="modal" style="max-width:600px">
+        <div class="modal-header">
+          <h2>📜 Transfer History</h2>
+          <div style="display:flex;gap:8px">
+            <button class="btn-sm btn-secondary" id="btn-clear-history">Clear All</button>
+            <button class="btn-icon" id="btn-close-history">✕</button>
+          </div>
+        </div>
+        <div class="modal-body" style="max-height:400px;overflow-y:auto;padding:0">
+          <div id="history-list" class="history-list">
+            <div class="device-list-empty"><p>No transfer history yet</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Connect Devices Modal -->
+    <div class="modal-overlay" id="connect-modal" style="display:none">
+      <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+          <h2>🔗 Connect Other Devices</h2>
+          <button class="btn-icon" id="btn-close-connect">✕</button>
+        </div>
+        <div class="modal-body" style="text-align:center">
+          <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">
+            Other devices on the <strong>same WiFi/network</strong> can join by opening this URL:
+          </p>
+          <div class="connect-url-box" id="connect-url-box">
+            <span id="connect-url">Loading...</span>
+            <button class="btn-sm btn-secondary" id="btn-copy-url" title="Copy URL">📋 Copy</button>
+          </div>
+          <div style="margin:20px 0">
+            <p style="color:var(--text-muted);font-size:11px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Scan with phone</p>
+            <img id="qr-code" src="/api/qr" alt="QR Code" style="width:180px;height:180px;border-radius:12px;border:1px solid var(--border)">
+          </div>
+          <div class="connect-steps">
+            <div class="connect-step">
+              <span class="step-num">1</span>
+              <span>Connect both devices to the <strong>same WiFi</strong></span>
+            </div>
+            <div class="connect-step">
+              <span class="step-num">2</span>
+              <span>Open the URL above on the other device's browser</span>
+            </div>
+            <div class="connect-step">
+              <span class="step-num">3</span>
+              <span>The device appears in your <strong>Nearby Devices</strong> panel</span>
+            </div>
+          </div>
+          <div style="margin-top:16px;padding:10px;background:var(--bg-glass);border-radius:var(--radius-sm);border:1px solid var(--border)">
+            <p style="font-size:11px;color:var(--text-muted)">⚠️ Only this PC needs to run <code style="color:var(--accent-light)">python app.py</code>. Other devices just open the URL in any browser.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Floating file visual -->
+    <div class="floating-file" id="floating-file" style="display:none">
+      <div class="floating-file-icon">📄</div>
+      <div class="floating-file-name" id="floating-file-name">file.pdf</div>
+    </div>
+
+    <!-- Transfer animation -->
+    <div class="transfer-animation" id="transfer-animation" style="display:none"><div class="transfer-beam"></div></div>
+
+    <!-- Toasts -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-modal" style="display:none">
+      <div class="modal">
+        <div class="modal-header"><h2>Settings</h2><button class="btn-icon" id="btn-close-settings">✕</button></div>
+        <div class="modal-body">
+          <div class="setting-group"><label class="setting-label">Device Name</label><input type="text" class="setting-input" id="setting-device-name" placeholder="My Device"></div>
+          <div class="setting-group"><label class="setting-label">Device Type</label><select class="setting-select" id="setting-device-type"><option value="laptop">💻 Laptop</option><option value="desktop">🖥️ Desktop</option><option value="phone">📱 Phone</option><option value="tablet">📋 Tablet</option></select></div>
+          <div class="setting-group"><label class="setting-label"><input type="checkbox" id="setting-auto-accept" checked> Auto-accept incoming files</label></div>
+        </div>
+        <div class="modal-footer"><button class="btn-sm btn-primary" id="btn-save-settings">Save</button></div>
+      </div>
+    </div>
+
+    <!-- Incoming File Modal -->
+    <div class="modal-overlay" id="incoming-modal" style="display:none">
+      <div class="modal incoming-modal" style="text-align:center;padding:30px">
+        <div class="incoming-animation" style="margin-bottom:16px;color:var(--accent-light);font-size:48px">📥<div class="incoming-pulse"></div></div>
+        <h2>Incoming File</h2>
+        <p class="incoming-from" id="incoming-from">From: Device</p>
+        <div class="incoming-file-info"><span class="incoming-file-name" id="incoming-file-name">file.pdf</span><span class="incoming-file-size" id="incoming-file-size">2.4 MB</span></div>
+        <div class="incoming-actions" style="margin-top:16px;display:flex;gap:12px;justify-content:center">
+          <button class="btn-sm btn-primary" id="btn-accept-file">Accept</button>
+          <button class="btn-sm btn-secondary" id="btn-reject-file">Reject</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/particles.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/gesture.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/transfer.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
