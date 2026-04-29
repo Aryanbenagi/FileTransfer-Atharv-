@@ -2,8 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="description" content="AirShare – Gesture-Based Cross-Device File Transfer">
+  <meta name="theme-color" content="#0a0a1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>AirShare – Gesture File Transfer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -49,12 +52,13 @@
         </div>
         <div class="connection-status" id="db-status">
           <span class="status-dot" id="db-dot"></span>
-          <span class="status-text" id="db-text">MongoDB</span>
+          <span class="status-text" id="db-text">Storage</span>
         </div>
       </div>
       <div class="topbar-right">
+        <div class="room-badge" id="room-badge" style="display:none"><span class="badge-label">Room</span><span class="badge-value" id="room-code-display">---</span><button class="btn-xs" id="btn-leave-room" title="Leave Room">✕</button></div>
         <div class="device-id-badge"><span class="badge-label">My ID</span><span class="badge-value" id="my-device-id">---</span></div>
-        <button class="btn-sm btn-primary" id="btn-connect" title="Connect Other Devices">+ Connect Devices</button>
+        <button class="btn-sm btn-primary" id="btn-connect" title="Connect Other Devices">+ Connect</button>
         <button class="btn-icon" id="btn-history" title="Transfer History">📜</button>
         <button class="btn-icon" id="btn-settings" title="Settings">⚙</button>
       </div>
@@ -65,14 +69,14 @@
       <div class="stats-item"><span class="stats-icon">📤</span><span class="stats-label">Transfers</span><span class="stats-value" id="stats-transfers">0</span></div>
       <div class="stats-item"><span class="stats-icon">💾</span><span class="stats-label">Data Sent</span><span class="stats-value" id="stats-bytes">0 B</span></div>
       <div class="stats-item"><span class="stats-icon">📋</span><span class="stats-label">Clipboards</span><span class="stats-value" id="stats-clips">0</span></div>
-      <div class="stats-item"><span class="stats-icon">📱</span><span class="stats-label">Devices Seen</span><span class="stats-value" id="stats-devices">0</span></div>
+      <div class="stats-item hide-mobile"><span class="stats-icon">📱</span><span class="stats-label">Devices Seen</span><span class="stats-value" id="stats-devices">0</span></div>
       <div class="stats-item"><span class="stats-icon">🟢</span><span class="stats-label">Active Now</span><span class="stats-value" id="stats-active">0</span></div>
     </div>
 
     <!-- Main Content -->
     <main class="main-content">
       <!-- Camera Panel -->
-      <section class="panel camera-panel">
+      <section class="panel camera-panel hide-mobile-panel">
         <div class="panel-header">
           <h2 class="panel-title">🎥 Hand Tracking</h2>
           <div class="panel-actions"><button class="btn-sm btn-primary" id="btn-toggle-camera">▶ Start Camera</button></div>
@@ -92,7 +96,7 @@
           <div class="gesture-tutorial" id="gesture-tutorial">
             <div class="tutorial-item"><span class="tutorial-gesture">🤏</span><span>Pinch = Select</span></div>
             <div class="tutorial-item"><span class="tutorial-gesture">✊</span><span>Fist = Hold</span></div>
-            <div class="tutorial-item"><span class="tutorial-gesture">🫳</span><span>Open = Send</span></div>
+            <div class="tutorial-item"><span class="tutorial-gesture">🫳</span><span>Throw = Send</span></div>
           </div>
         </div>
         <div class="gesture-stats">
@@ -109,11 +113,13 @@
           <h2 class="panel-title">📁 File Zone</h2>
           <div class="panel-actions">
             <button class="btn-sm btn-secondary" id="btn-add-files">+ Add Files</button>
-            <button class="btn-sm btn-secondary" id="btn-clipboard">📋 Air Clipboard</button>
+            <button class="btn-sm btn-secondary" id="btn-add-folder">+ Add Folder</button>
+            <button class="btn-sm btn-secondary" id="btn-clipboard">📋 Clipboard</button>
           </div>
         </div>
         <div class="file-drop-zone" id="file-drop-zone">
           <input type="file" id="file-input" multiple hidden>
+          <input type="file" id="folder-input" webkitdirectory directory multiple hidden>
           <div class="drop-zone-empty" id="drop-zone-empty">
             <div class="drop-icon-container"><div class="drop-icon-ring"></div><div style="font-size:48px">📂</div></div>
             <p class="drop-title">Drop files here or click "Add Files"</p>
@@ -123,8 +129,11 @@
         </div>
         <div class="air-clipboard" id="air-clipboard" style="display:none">
           <div class="clipboard-header"><h3>📋 Air Clipboard</h3><button class="btn-xs" id="btn-close-clipboard">✕</button></div>
-          <textarea class="clipboard-input" id="clipboard-input" placeholder="Paste text here... Send to any device"></textarea>
-          <div class="clipboard-actions"><button class="btn-sm btn-primary" id="btn-clipboard-send">Send to Device</button></div>
+          <textarea class="clipboard-input" id="clipboard-input" placeholder="Start typing... syncs to selected device in real-time"></textarea>
+          <div class="clipboard-actions">
+            <span class="clipboard-sync-hint">✨ Syncs as you type</span>
+            <button class="btn-sm btn-primary" id="btn-clipboard-send">Send to Device</button>
+          </div>
         </div>
         <div class="transfer-progress" id="transfer-progress" style="display:none">
           <div class="progress-header"><span class="progress-title" id="progress-title">Sending...</span><span class="progress-percent" id="progress-percent">0%</span></div>
@@ -173,7 +182,7 @@
     <div class="modal-overlay" id="connect-modal" style="display:none">
       <div class="modal" style="max-width:480px">
         <div class="modal-header">
-          <h2>🔗 Connect Other Devices</h2>
+          <h2>🔗 Connect Devices</h2>
           <button class="btn-icon" id="btn-close-connect">✕</button>
         </div>
         <div class="modal-body" style="text-align:center">
@@ -187,6 +196,7 @@
           <div style="margin:20px 0">
             <p style="color:var(--text-muted);font-size:11px;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Scan with phone</p>
             <img id="qr-code" src="/api/qr" alt="QR Code" style="width:180px;height:180px;border-radius:12px;border:1px solid var(--border)">
+            <p id="qr-fallback" style="display:none;color:var(--text-muted);font-size:12px;margin-top:8px">QR code unavailable. Use the URL above instead.</p>
           </div>
           <div class="connect-steps">
             <div class="connect-step">
@@ -205,14 +215,24 @@
           <div style="margin-top:16px;padding:10px;background:var(--bg-glass);border-radius:var(--radius-sm);border:1px solid var(--border)">
             <p style="font-size:11px;color:var(--text-muted)">⚠️ Only this PC needs to run <code style="color:var(--accent-light)">python app.py</code>. Other devices just open the URL in any browser.</p>
           </div>
+          <div class="room-code-section" style="margin-top:20px;padding:16px;background:var(--bg-glass);border-radius:var(--radius);border:1px solid var(--border)">
+            <h3 style="font-size:14px;margin:0 0 8px;color:var(--text-primary)">🔗 Room Code (cross-network)</h3>
+            <p style="font-size:11px;color:var(--text-muted);margin:0 0 12px">Devices don't need to be on the same WiFi. Share a 6-digit code instead.</p>
+            <div style="display:flex;gap:8px;align-items:center;justify-content:center">
+              <input type="text" id="room-code-input" class="setting-input" placeholder="6-digit code" maxlength="6" pattern="[0-9]*" inputmode="numeric" style="width:120px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:4px">
+            </div>
+            <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
+              <button class="btn-sm btn-primary" id="btn-create-room">✨ Create Room</button>
+              <button class="btn-sm btn-secondary" id="btn-join-room">🔗 Join Room</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-
     <!-- Floating file visual -->
     <div class="floating-file" id="floating-file" style="display:none">
-      <div class="floating-file-icon">📄</div>
+      <div class="floating-file-icon" id="floating-file-icon">📄</div>
       <div class="floating-file-name" id="floating-file-name">file.pdf</div>
     </div>
 
@@ -251,6 +271,7 @@
   </div>
 
   <script src="{{ url_for('static', filename='js/particles.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sounds.js') }}"></script>
   <script src="{{ url_for('static', filename='js/gesture.js') }}"></script>
   <script src="{{ url_for('static', filename='js/transfer.js') }}"></script>
   <script src="{{ url_for('static', filename='js/ui.js') }}"></script>

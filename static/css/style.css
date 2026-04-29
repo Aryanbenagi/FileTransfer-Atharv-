@@ -450,8 +450,148 @@ html, body {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
-/* ═══ Responsive ═══ */
-@media (max-width: 900px) {
-  .main-content { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
-  .device-radar { width: 120px; height: 120px; }
+/* ═══ Flying File Animation ═══ */
+.flying-file {
+  position: fixed; z-index: 500; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center;
+  filter: drop-shadow(0 0 20px rgba(99,102,241,0.7));
 }
+.flying-file-icon { font-size: 36px; }
+.flying-file-trail {
+  position: absolute; width: 4px; height: 40px;
+  background: linear-gradient(to bottom, var(--accent), transparent);
+  top: 100%; border-radius: 2px; opacity: 0.6;
+}
+.flying-file-glow {
+  position: absolute; inset: -20px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(99,102,241,0.3), transparent 70%);
+  animation: flyGlow 0.3s ease-in-out infinite alternate;
+}
+@keyframes flyGlow { from{transform:scale(1)} to{transform:scale(1.3);opacity:0.5} }
+.fly-particle {
+  position: fixed; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent-light); z-index: 499; pointer-events: none;
+  animation: particleFade 0.6s ease-out forwards;
+  box-shadow: 0 0 8px var(--accent);
+}
+@keyframes particleFade { from{opacity:1;transform:scale(1)} to{opacity:0;transform:scale(0.2)} }
+.fly-impact {
+  position: fixed; width: 60px; height: 60px; border-radius: 50%;
+  border: 2px solid var(--accent-light); z-index: 499; pointer-events: none;
+  transform: translate(-50%,-50%);
+  animation: impactRing 0.6s ease-out forwards;
+}
+@keyframes impactRing { from{transform:translate(-50%,-50%) scale(0.3);opacity:1} to{transform:translate(-50%,-50%) scale(2);opacity:0} }
+
+/* ═══ Device Receiving Glow ═══ */
+.device-item.device-receiving {
+  border-color: var(--accent3) !important;
+  background: rgba(167,139,250,0.15) !important;
+  animation: devicePulseGlow 1.5s ease-in-out infinite;
+  box-shadow: 0 0 20px rgba(167,139,250,0.25);
+}
+@keyframes devicePulseGlow {
+  0%,100%{box-shadow:0 0 10px rgba(167,139,250,0.2);border-color:var(--accent3)}
+  50%{box-shadow:0 0 25px rgba(167,139,250,0.45);border-color:var(--accent-light)}
+}
+.radar-dot-receiving {
+  animation: radarDotPulse 1s ease-in-out infinite !important;
+  box-shadow: 0 0 15px rgba(167,139,250,0.6) !important;
+  background: var(--accent3) !important;
+}
+@keyframes radarDotPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.6)} }
+
+/* ═══ Clipboard Sync ═══ */
+.clipboard-input.clipboard-syncing {
+  border-color: var(--accent-light) !important;
+  box-shadow: 0 0 12px rgba(99,102,241,0.3);
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.clipboard-sync-hint {
+  font-size: 10px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;
+}
+.clipboard-actions { margin-top: 8px; display: flex; justify-content: space-between; align-items: center; }
+
+/* ═══ Mobile Responsive ═══ */
+@media (max-width: 900px) {
+  .main-content { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; gap: 10px; padding: 10px; }
+  .device-radar { width: 120px; height: 120px; }
+  .topbar { padding: 8px 12px; }
+  .topbar-center { display: none; }
+  .stats-bar { overflow-x: auto; gap: 6px; padding: 6px 10px; }
+  .stats-item { min-width: 100px; padding: 4px 10px; }
+  .hide-mobile { display: none !important; }
+  .badge-label { display: none; }
+  html, body { overflow: auto; }
+}
+
+/* Phone: hide camera panel entirely, show clean receive UI */
+.mobile-device .hide-mobile-panel { display: none !important; }
+.mobile-device .main-content {
+  grid-template-columns: 1fr !important;
+  grid-template-rows: 1fr auto !important;
+}
+.mobile-device .topbar-center { display: none; }
+.mobile-device .stats-bar .hide-mobile { display: none !important; }
+.mobile-device .device-radar { width: 140px; height: 140px; }
+.mobile-device .file-drop-zone { min-height: 200px; }
+
+@media (max-width: 480px) {
+  .topbar { height: 48px; }
+  .topbar-right { gap: 6px; }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+  .panel-header { padding: 10px 14px; }
+  .panel-title { font-size: 13px; }
+  .modal { width: 95%; }
+  .connect-url-box { flex-direction: column; gap: 8px; }
+  .connect-url-box span { font-size: 13px; }
+  .toast-container { bottom: 12px; right: 12px; left: 12px; }
+  .toast { max-width: 100%; font-size: 12px; }
+}
+
+/* ═══ Room Badge ═══ */
+.room-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(167,139,250,0.15));
+  border: 1px solid var(--accent); border-radius: var(--radius);
+  padding: 4px 10px; font-size: 12px;
+}
+.room-badge .badge-value {
+  font-family: 'JetBrains Mono', monospace; font-size: 14px;
+  color: var(--accent-light); font-weight: 600; letter-spacing: 2px;
+}
+.room-badge .btn-xs {
+  margin-left: 4px; background: none; border: none;
+  color: var(--text-muted); cursor: pointer; font-size: 12px;
+  padding: 2px 4px; border-radius: 4px;
+}
+.room-badge .btn-xs:hover { color: var(--danger); background: rgba(239,68,68,0.1); }
+
+/* ═══ Floating Thumbnail ═══ */
+.floating-thumb {
+  width: 48px; height: 48px; object-fit: cover;
+  border-radius: 8px; border: 2px solid var(--accent);
+  box-shadow: 0 0 12px rgba(99,102,241,0.4);
+}
+.floating-file-icon {
+  font-size: 32px; display: flex; align-items: center; justify-content: center;
+}
+
+/* ═══ Device Hover Target (point gesture) ═══ */
+.device-item.hover-target {
+  border-color: var(--accent-light) !important;
+  background: rgba(99,102,241,0.12) !important;
+  transform: scale(1.03);
+  transition: all 0.15s ease;
+  box-shadow: 0 0 15px rgba(99,102,241,0.2);
+}
+
+/* ═══ PWA Receive Mode ═══ */
+.pwa-receive-mode .camera-panel { display: none !important; }
+.pwa-receive-mode .main-content {
+  grid-template-columns: 1fr !important;
+  grid-template-rows: 1fr auto !important;
+}
+.pwa-receive-mode .file-drop-zone { min-height: 40vh; }
+.pwa-receive-mode .panel-header { padding: 12px 16px; }
+.pwa-receive-mode .panel-title { font-size: 16px; }
