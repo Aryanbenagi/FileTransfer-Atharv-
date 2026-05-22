@@ -3,6 +3,26 @@ AirShare - Gesture-Based Cross-Device File Transfer System
 Main Flask + SocketIO Server with MongoDB Integration
 """
 
+# Suppress annoying eventlet SSL HTTP_REQUEST traceback logs from terminal
+try:
+    import eventlet
+    import eventlet.hubs.hub
+    import ssl
+    
+    original_squelch = eventlet.hubs.hub.BaseHub.squelch_timer_exception
+    
+    def custom_squelch_timer_exception(self, timer, exc_info):
+        exc_type, exc_val, exc_tb = exc_info
+        if exc_type is not None and issubclass(exc_type, ssl.SSLError):
+            err_msg = str(exc_val)
+            if "HTTP_REQUEST" in err_msg or "http request" in err_msg:
+                return
+        original_squelch(self, timer, exc_info)
+        
+    eventlet.hubs.hub.BaseHub.squelch_timer_exception = custom_squelch_timer_exception
+except Exception:
+    pass
+
 import os
 import uuid
 import socket
