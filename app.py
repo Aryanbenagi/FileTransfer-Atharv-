@@ -225,16 +225,34 @@ def get_local_ip():
     except Exception:
         pass
 
-    # Method 4: parse ipconfig output (Windows)
+    # Method 4: parse ipconfig/ifconfig output (Windows/macOS/Linux)
     try:
         import subprocess
-        result = subprocess.run(["ipconfig"], capture_output=True, text=True, timeout=5)
-        for line in result.stdout.split("\n"):
-            line = line.strip()
-            if "IPv4" in line and ":" in line:
-                ip = line.split(":")[-1].strip()
-                if ip and not ip.startswith("127."):
-                    return ip
+        # Try ipconfig (Windows)
+        try:
+            result = subprocess.run(["ipconfig"], capture_output=True, text=True, timeout=5)
+            for line in result.stdout.split("\n"):
+                line = line.strip()
+                if "IPv4" in line and ":" in line:
+                    ip = line.split(":")[-1].strip()
+                    if ip and not ip.startswith("127."):
+                        return ip
+        except Exception:
+            pass
+
+        # Try ifconfig (macOS/Linux)
+        try:
+            result = subprocess.run(["ifconfig"], capture_output=True, text=True, timeout=5)
+            for line in result.stdout.split("\n"):
+                line = line.strip()
+                if line.startswith("inet "):
+                    parts = line.split()
+                    if len(parts) > 1:
+                        ip = parts[1]
+                        if ip and not ip.startswith("127."):
+                            return ip
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -252,7 +270,7 @@ def index():
 def connection_info():
     """Return the server's network URL for other devices to connect."""
     local_ip = get_local_ip()
-    port = 5000
+    port = 5003
     url = f'http://{local_ip}:{port}'
     return jsonify({
         'url': url,
@@ -264,24 +282,41 @@ def connection_info():
 
 @app.route('/api/qr')
 def qr_code():
-    """Generate a QR code PNG for the server URL."""
+    """Generate a QR code SVG/PNG for the server URL."""
     if not HAS_QRCODE:
         # Return a simple text fallback
         return jsonify({'error': 'qrcode library not installed. pip install qrcode pillow'}), 500
 
     try:
         local_ip = get_local_ip()
-        port = 5000
-        url = f'http://{local_ip}:{port}'
+        # Dynamically determine the URL based on request host to support different ports and IPs
+        url = request.url_root.rstrip('/')
+        if '127.0.0.1' in url or 'localhost' in url:
+            port = request.host.split(':')[-1] if ':' in request.host else '5003'
+            url = f'http://{local_ip}:{port}'
+
         qr = qrcode.QRCode(version=1, box_size=8, border=2)
         qr.add_data(url)
         qr.make(fit=True)
-        img = qr.make_image(fill_color='#6366f1', back_color='#0a0a1a')
-        buf = io.BytesIO()
-        img.save(buf, format='PNG')
-        buf.seek(0)
-        return Response(buf.getvalue(), mimetype='image/png',
-                        headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
+
+        # Try to generate vector SVG QR code first
+        try:
+            import qrcode.image.svg
+            img = qr.make_image(image_factory=qrcode.image.svg.SvgImage, fill_color='#6366f1', back_color='#0a0a1a')
+            buf = io.BytesIO()
+            img.save(buf)
+            buf.seek(0)
+            return Response(buf.getvalue(), mimetype='image/svg+xml',
+                            headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
+        except Exception as svg_err:
+            print(f'[QR] SVG generation failed, falling back to PNG: {svg_err}')
+            # Fallback to PNG
+            img = qr.make_image(fill_color='#6366f1', back_color='#0a0a1a')
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            buf.seek(0)
+            return Response(buf.getvalue(), mimetype='image/png',
+                            headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
     except Exception as e:
         print(f'[QR] Error generating QR code: {e}')
         # Return a 1x1 transparent PNG as fallback
@@ -722,7 +757,7 @@ def broadcast_device_list_to_room(code):
 
 if __name__ == '__main__':
     local_ip = get_local_ip()
-    port = 5000
+    port = 5003
     print()
     print('=================================================')
     print('        AirShare Server Running')

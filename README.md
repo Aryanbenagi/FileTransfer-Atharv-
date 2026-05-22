@@ -20,18 +20,24 @@ A futuristic, touchless file sharing system where users can **pick files using h
 
 ## Quick Start
 
-### Option 1: Double-click
+### Option 1: macOS / Linux (One-click)
+Run the startup script in terminal:
+```bash
+./start.sh
 ```
+
+### Option 2: Windows (One-click)
+Double-click `start.bat` or run:
+```cmd
 start.bat
 ```
 
-### Option 2: Manual
+### Option 3: Manual (Cross-platform)
 ```bash
-pip install flask flask-socketio eventlet pymongo qrcode pillow
-python app.py
+pip install -r requirements.txt
+python3 app.py
 ```
 
-Open `http://localhost:5000` in your browser.
 
 ## How to Connect Other Devices
 
@@ -55,6 +61,7 @@ Open `http://localhost:5000` in your browser.
 ```
 ├── app.py              # Flask server + MongoDB + SocketIO
 ├── start.bat           # One-click launcher (Windows)
+├── start.sh            # One-click launcher (macOS/Linux)
 ├── templates/
 │   └── index.html      # Main UI template
 ├── static/
