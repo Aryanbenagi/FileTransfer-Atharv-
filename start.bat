@@ -100,14 +100,8 @@ echo   Opening browser in 3 seconds...
 echo  ================================================
 echo.
 
-:: Check if SSL certs exist and set PROTOCOL
-set PROTOCOL=http
-if exist certs\cert.pem if exist certs\key.pem (
-    set PROTOCOL=https
-)
-
 :: Start browser after a delay
-start "" cmd /c "timeout /t 3 /nobreak >nul && start %PROTOCOL%://localhost:5003"
+start "" cmd /c "timeout /t 3 /nobreak >nul && start http://localhost:5000"
 
 :: Start the Flask server (this blocks until Ctrl+C)
 cd /d "%~dp0"

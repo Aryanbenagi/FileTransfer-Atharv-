@@ -132,19 +132,12 @@ echo
 
 # Detect OS and open browser in background
 OS_TYPE="$(uname)"
-PROTOCOL="http"
-if [ -f "certs/cert.pem" ] && [ -f "certs/key.pem" ]; then
-    PROTOCOL="https"
+APP_PORT=${PORT:-5050}
+if [[ "$OS_TYPE" == "Darwin" ]]; then
+    (sleep 3 && open "http://localhost:${APP_PORT}") &
+elif [[ "$OS_TYPE" == "Linux" ]]; then
+    (sleep 3 && (xdg-open "http://localhost:${APP_PORT}" || sensible-browser "http://localhost:${APP_PORT}" || x-www-browser "http://localhost:${APP_PORT}")) >/dev/null 2>&1 &
 fi
-
-(
-    sleep 3
-    if [[ "$OS_TYPE" == "Darwin" ]]; then
-        open "${PROTOCOL}://localhost:5003"
-    elif [[ "$OS_TYPE" == "Linux" ]]; then
-        xdg-open "${PROTOCOL}://localhost:5003" || sensible-browser "${PROTOCOL}://localhost:5003" || x-www-browser "${PROTOCOL}://localhost:5003"
-    fi
-) >/dev/null 2>&1 &
 
 # Change to the directory of this script
 cd "$(dirname "$0")"

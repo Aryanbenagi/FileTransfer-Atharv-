@@ -3,26 +3,6 @@ AirShare - Gesture-Based Cross-Device File Transfer System
 Main Flask + SocketIO Server with MongoDB Integration
 """
 
-# Suppress annoying eventlet SSL HTTP_REQUEST traceback logs from terminal
-try:
-    import eventlet
-    import eventlet.hubs.hub
-    import ssl
-    
-    original_squelch = eventlet.hubs.hub.BaseHub.squelch_timer_exception
-    
-    def custom_squelch_timer_exception(self, timer, exc_info):
-        exc_type, exc_val, exc_tb = exc_info
-        if exc_type is not None and issubclass(exc_type, ssl.SSLError):
-            err_msg = str(exc_val)
-            if "HTTP_REQUEST" in err_msg or "http request" in err_msg:
-                return
-        original_squelch(self, timer, exc_info)
-        
-    eventlet.hubs.hub.BaseHub.squelch_timer_exception = custom_squelch_timer_exception
-except Exception:
-    pass
-
 import os
 import uuid
 import socket
@@ -51,6 +31,9 @@ app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
 
 socketio = SocketIO(app, cors_allowed_origins="*", max_http_buffer_size=100 * 1024 * 1024,
                     ping_timeout=60, ping_interval=25)
+
+# ─── Port Configuration ───────────────────────────────────
+PORT = int(os.environ.get('PORT', 5050))
 
 # ─── MongoDB Setup with Memory Fallback ───────────────────
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
@@ -245,34 +228,16 @@ def get_local_ip():
     except Exception:
         pass
 
-    # Method 4: parse ipconfig/ifconfig output (Windows/macOS/Linux)
+    # Method 4: parse ipconfig output (Windows)
     try:
         import subprocess
-        # Try ipconfig (Windows)
-        try:
-            result = subprocess.run(["ipconfig"], capture_output=True, text=True, timeout=5)
-            for line in result.stdout.split("\n"):
-                line = line.strip()
-                if "IPv4" in line and ":" in line:
-                    ip = line.split(":")[-1].strip()
-                    if ip and not ip.startswith("127."):
-                        return ip
-        except Exception:
-            pass
-
-        # Try ifconfig (macOS/Linux)
-        try:
-            result = subprocess.run(["ifconfig"], capture_output=True, text=True, timeout=5)
-            for line in result.stdout.split("\n"):
-                line = line.strip()
-                if line.startswith("inet "):
-                    parts = line.split()
-                    if len(parts) > 1:
-                        ip = parts[1]
-                        if ip and not ip.startswith("127."):
-                            return ip
-        except Exception:
-            pass
+        result = subprocess.run(["ipconfig"], capture_output=True, text=True, timeout=5)
+        for line in result.stdout.split("\n"):
+            line = line.strip()
+            if "IPv4" in line and ":" in line:
+                ip = line.split(":")[-1].strip()
+                if ip and not ip.startswith("127."):
+                    return ip
     except Exception:
         pass
 
@@ -290,9 +255,8 @@ def index():
 def connection_info():
     """Return the server's network URL for other devices to connect."""
     local_ip = get_local_ip()
-    port = 5003
-    scheme = request.scheme
-    url = f'{scheme}://{local_ip}:{port}'
+    port = PORT
+    url = f'http://{local_ip}:{port}'
     return jsonify({
         'url': url,
         'ip': local_ip,
@@ -303,42 +267,24 @@ def connection_info():
 
 @app.route('/api/qr')
 def qr_code():
-    """Generate a QR code SVG/PNG for the server URL."""
+    """Generate a QR code PNG for the server URL."""
     if not HAS_QRCODE:
         # Return a simple text fallback
         return jsonify({'error': 'qrcode library not installed. pip install qrcode pillow'}), 500
 
     try:
         local_ip = get_local_ip()
-        # Dynamically determine the URL based on request host to support different ports and IPs
-        url = request.url_root.rstrip('/')
-        if '127.0.0.1' in url or 'localhost' in url:
-            port = request.host.split(':')[-1] if ':' in request.host else '5003'
-            scheme = request.scheme
-            url = f'{scheme}://{local_ip}:{port}'
-
+        port = PORT
+        url = f'http://{local_ip}:{port}'
         qr = qrcode.QRCode(version=1, box_size=8, border=2)
         qr.add_data(url)
         qr.make(fit=True)
-
-        # Try to generate vector SVG QR code first
-        try:
-            import qrcode.image.svg
-            img = qr.make_image(image_factory=qrcode.image.svg.SvgImage, fill_color='#6366f1', back_color='#0a0a1a')
-            buf = io.BytesIO()
-            img.save(buf)
-            buf.seek(0)
-            return Response(buf.getvalue(), mimetype='image/svg+xml',
-                            headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
-        except Exception as svg_err:
-            print(f'[QR] SVG generation failed, falling back to PNG: {svg_err}')
-            # Fallback to PNG
-            img = qr.make_image(fill_color='#6366f1', back_color='#0a0a1a')
-            buf = io.BytesIO()
-            img.save(buf, format='PNG')
-            buf.seek(0)
-            return Response(buf.getvalue(), mimetype='image/png',
-                            headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
+        img = qr.make_image(fill_color='#6366f1', back_color='#0a0a1a')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        buf.seek(0)
+        return Response(buf.getvalue(), mimetype='image/png',
+                        headers={'Cache-Control': 'no-cache, no-store, must-revalidate'})
     except Exception as e:
         print(f'[QR] Error generating QR code: {e}')
         # Return a 1x1 transparent PNG as fallback
@@ -779,28 +725,16 @@ def broadcast_device_list_to_room(code):
 
 if __name__ == '__main__':
     local_ip = get_local_ip()
-    port = 5003
-    
-    key_path = os.path.join(os.path.dirname(__file__), 'certs', 'key.pem')
-    cert_path = os.path.join(os.path.dirname(__file__), 'certs', 'cert.pem')
-    
-    ssl_enabled = os.path.exists(key_path) and os.path.exists(cert_path)
-    protocol = "https" if ssl_enabled else "http"
-    
+    port = PORT
     print()
     print('=================================================')
     print('        AirShare Server Running')
     print('=================================================')
-    print(f'  Local:   {protocol}://localhost:{port}')
-    print(f'  Network: {protocol}://{local_ip}:{port}')
+    print(f'  Local:   http://localhost:{port}')
+    print(f'  Network: http://{local_ip}:{port}')
     print(f'  MongoDB: {"Connected" if mongo_connected else "Memory fallback (no crash)"}')
-    print(f'  SSL:     {"Enabled (HTTPS)" if ssl_enabled else "Disabled (Plain HTTP)"}')
     print('-------------------------------------------------')
     print('  Open on multiple devices to start sharing!')
     print('=================================================')
     print()
-    
-    if ssl_enabled:
-        socketio.run(app, host='0.0.0.0', port=port, debug=True, allow_unsafe_werkzeug=True, keyfile=key_path, certfile=cert_path)
-    else:
-        socketio.run(app, host='0.0.0.0', port=port, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=port, debug=True, allow_unsafe_werkzeug=True)
