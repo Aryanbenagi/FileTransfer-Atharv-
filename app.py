@@ -271,7 +271,8 @@ def connection_info():
     """Return the server's network URL for other devices to connect."""
     local_ip = get_local_ip()
     port = 5003
-    url = f'http://{local_ip}:{port}'
+    scheme = request.scheme
+    url = f'{scheme}://{local_ip}:{port}'
     return jsonify({
         'url': url,
         'ip': local_ip,
@@ -293,7 +294,8 @@ def qr_code():
         url = request.url_root.rstrip('/')
         if '127.0.0.1' in url or 'localhost' in url:
             port = request.host.split(':')[-1] if ':' in request.host else '5003'
-            url = f'http://{local_ip}:{port}'
+            scheme = request.scheme
+            url = f'{scheme}://{local_ip}:{port}'
 
         qr = qrcode.QRCode(version=1, box_size=8, border=2)
         qr.add_data(url)
@@ -758,15 +760,27 @@ def broadcast_device_list_to_room(code):
 if __name__ == '__main__':
     local_ip = get_local_ip()
     port = 5003
+    
+    key_path = os.path.join(os.path.dirname(__file__), 'certs', 'key.pem')
+    cert_path = os.path.join(os.path.dirname(__file__), 'certs', 'cert.pem')
+    
+    ssl_enabled = os.path.exists(key_path) and os.path.exists(cert_path)
+    protocol = "https" if ssl_enabled else "http"
+    
     print()
     print('=================================================')
     print('        AirShare Server Running')
     print('=================================================')
-    print(f'  Local:   http://localhost:{port}')
-    print(f'  Network: http://{local_ip}:{port}')
+    print(f'  Local:   {protocol}://localhost:{port}')
+    print(f'  Network: {protocol}://{local_ip}:{port}')
     print(f'  MongoDB: {"Connected" if mongo_connected else "Memory fallback (no crash)"}')
+    print(f'  SSL:     {"Enabled (HTTPS)" if ssl_enabled else "Disabled (Plain HTTP)"}')
     print('-------------------------------------------------')
     print('  Open on multiple devices to start sharing!')
     print('=================================================')
     print()
-    socketio.run(app, host='0.0.0.0', port=port, debug=True, allow_unsafe_werkzeug=True)
+    
+    if ssl_enabled:
+        socketio.run(app, host='0.0.0.0', port=port, debug=True, allow_unsafe_werkzeug=True, keyfile=key_path, certfile=cert_path)
+    else:
+        socketio.run(app, host='0.0.0.0', port=port, debug=True, allow_unsafe_werkzeug=True)

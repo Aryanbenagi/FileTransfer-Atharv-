@@ -132,12 +132,17 @@ echo
 
 # Detect OS and open browser in background
 OS_TYPE="$(uname)"
+PROTOCOL="http"
+if [ -f "certs/cert.pem" ] && [ -f "certs/key.pem" ]; then
+    PROTOCOL="https"
+fi
+
 (
     sleep 3
     if [[ "$OS_TYPE" == "Darwin" ]]; then
-        open "http://localhost:5003"
+        open "${PROTOCOL}://localhost:5003"
     elif [[ "$OS_TYPE" == "Linux" ]]; then
-        xdg-open "http://localhost:5003" || sensible-browser "http://localhost:5003" || x-www-browser "http://localhost:5003"
+        xdg-open "${PROTOCOL}://localhost:5003" || sensible-browser "${PROTOCOL}://localhost:5003" || x-www-browser "${PROTOCOL}://localhost:5003"
     fi
 ) >/dev/null 2>&1 &
 
